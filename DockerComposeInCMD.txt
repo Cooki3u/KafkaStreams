@@ -1,0 +1,61 @@
+C:\Users\User>cd C:\Users\User\dev\KafkaStreams
+
+C:\Users\User\dev\KafkaStreams>docker compose up -d
+time="2025-06-15T15:16:49+03:00" level=warning msg="C:\\Users\\User\\dev\\KafkaStreams\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 3/3
+ ✔ Network kafkastreams_default        Created                                                                     0.0s
+ ✔ Container kafkastreams-zookeeper-1  Started                                                                     0.3s
+ ✔ Container kafkastreams-kafka-1      Started                                                                     0.4s
+
+C:\Users\User\dev\KafkaStreams>type docker-compose.yml
+version: '3.8'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "input-topic:1:1,test-topic:1:1"
+
+C:\Users\User\dev\KafkaStreams>docker compose down -v
+time="2025-06-15T15:18:10+03:00" level=warning msg="C:\\Users\\User\\dev\\KafkaStreams\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 3/3
+ ✔ Container kafkastreams-kafka-1      Removed                                                                     0.9s
+ ✔ Container kafkastreams-zookeeper-1  Removed                                                                     0.6s
+ ✔ Network kafkastreams_default        Removed                                                                     0.3s
+
+C:\Users\User\dev\KafkaStreams>docker compose up -d
+time="2025-06-15T15:18:19+03:00" level=warning msg="C:\\Users\\User\\dev\\KafkaStreams\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+[+] Running 3/3
+ ✔ Network kafkastreams_default        Created                                                                     0.0s
+ ✔ Container kafkastreams-zookeeper-1  Started                                                                     0.3s
+ ✔ Container kafkastreams-kafka-1      Started                                                                     0.4s
+
+C:\Users\User\dev\KafkaStreams>docker ps
+CONTAINER ID   IMAGE                             COMMAND                  CREATED          STATUS          PORTS                                        NAMES
+2f392060d633   confluentinc/cp-kafka:7.5.0       "/etc/confluent/dock…"   20 seconds ago   Up 20 seconds   0.0.0.0:9092->9092/tcp                       kafkastreams-kafka-1
+50380fbde397   confluentinc/cp-zookeeper:7.5.0   "/etc/confluent/dock…"   20 seconds ago   Up 20 seconds   2888/tcp, 0.0.0.0:2181->2181/tcp, 3888/tcp   kafkastreams-zookeeper-1
+
+C:\Users\User\dev\KafkaStreams>docker exec -it kafkastreams-kafka-1 kafka-topics --list --bootstrap-server localhost:9092
+__consumer_offsets
+my_topic
+
+C:\Users\User\dev\KafkaStreams>docker exec -it kafkastreams-kafka-1 kafka-topics --create --topic input-topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+Created topic input-topic.
+
+C:\Users\User\dev\KafkaStreams>docker exec -it kafkastreams-kafka-1 kafka-topics --create --topic test-topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+Created topic test-topic.

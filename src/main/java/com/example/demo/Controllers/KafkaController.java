@@ -1,5 +1,6 @@
-package com.example.demo;
+package com.example.demo.Controllers;
 
+import com.example.demo.Services.KafkaProducerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
