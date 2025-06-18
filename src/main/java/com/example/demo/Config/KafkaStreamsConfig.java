@@ -1,6 +1,6 @@
 package com.example.demo.Config;
 
-import com.example.demo.Services.ResourceDescriptionCacheService;
+import com.example.demo.Services.ResourceDescriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.binary.Hex;
@@ -11,15 +11,13 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import com.example.demo.Services.CsvZipProcessor;
+import com.example.demo.Services.ZipProcessor;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -33,14 +31,14 @@ public class KafkaStreamsConfig {
     public static final String YELLOW = "\u001B[33m";
     public static final String BLUE = "\u001B[34m";
 
-    private final ResourceDescriptionCacheService cacheService;
-    private final CsvZipProcessor csvZipProcessor;
+    private final ResourceDescriptionService resourceDescriptionService;
+    private final ZipProcessor zipProcessor;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Autowired
-    public KafkaStreamsConfig(ResourceDescriptionCacheService cacheService, CsvZipProcessor csvZipProcessor, KafkaTemplate<String, String> kafkaTemplate) {
-        this.cacheService = cacheService;
-        this.csvZipProcessor = csvZipProcessor;
+    public KafkaStreamsConfig(ResourceDescriptionService resourceDescriptionService, ZipProcessor zipProcessor, KafkaTemplate<String, String> kafkaTemplate) {
+        this.resourceDescriptionService = resourceDescriptionService;
+        this.zipProcessor = zipProcessor;
         this.kafkaTemplate = kafkaTemplate;
     }
 
@@ -78,8 +76,25 @@ public class KafkaStreamsConfig {
             if (resourceId == null) {
                 return false;
             }
-            List<String> csvJsons = csvZipProcessor.processZipCsv(zipPath, resourceId);
-            sendCsvJsonsToKafka(csvJsons, metadata, objectMapper);
+
+            List<String> jsons = new ArrayList<>();
+            String fileType = resourceDescriptionService.getFileType(resourceId);
+
+            switch (fileType) {
+                case "JSON" -> {
+                    jsons = zipProcessor.processZipJson(zipPath);
+                }
+                case "CSV" -> {
+                    jsons = zipProcessor.processZipCsv(zipPath, resourceId);
+                }
+                default -> {
+                    System.out.println(RED + "Unsupported file type: " + fileType + RESET);
+                    return false;
+                }
+            }
+
+            sendJsonsToKafka(jsons, metadata, objectMapper);
+
             return !metadata.isEmpty();
         } catch (Exception e) {
             System.out.println("Error processing zip or metadata: " + e.getMessage());
@@ -93,10 +108,12 @@ public class KafkaStreamsConfig {
         // convert the incoming JSON string to a JsonNode
         JsonNode node = objectMapper.readTree(value);
         String zipPath = node.path("zipPath").asText();
-        if (!zipPath.matches(".*111_csv_with_metadata_.*\\.zip$")) {
-            return null;
+
+        if (zipPath.matches(".*\\.zip$")) {
+            return zipPath;
         }
-        return zipPath;
+
+        return null;
     }
 
     // #4: opens the zip file, reads metadata.json, enriches it with resource
@@ -111,7 +128,7 @@ public class KafkaStreamsConfig {
                 Map<String, Object> metadata = objectMapper.readValue(is, Map.class);
                 Integer resourceId = extractResourceId(metadata);
                 if (resourceId != null) {
-                    Map<String, Object> resourceDesc = cacheService.getDescription(resourceId);
+                    Map<String, Object> resourceDesc = resourceDescriptionService.getDescription(resourceId);
                     if (resourceDesc != null) {
                         metadata.putAll(resourceDesc);
                         System.out.println(GREEN + "Enriched Metadata: " + metadata + RESET);
@@ -142,16 +159,16 @@ public class KafkaStreamsConfig {
         return null;
     }
 
-    // #11: sends the CSV JSONs to the output_results Kafka topic
-    private void sendCsvJsonsToKafka(List<String> csvJsons, Map<String, Object> metadata, ObjectMapper objectMapper) throws Exception {
+    // #11: sends the JSONs to the output_results Kafka topic
+    private void sendJsonsToKafka(List<String> jsons, Map<String, Object> metadata, ObjectMapper objectMapper) throws Exception {
         String metadataJson = objectMapper.writeValueAsString(metadata);
-        for (String csvJson : csvJsons) {
-            Map<String, Object> csvMap = objectMapper.readValue(csvJson, Map.class);
+        for (String json : jsons) {
+            Map<String, Object> csvMap = objectMapper.readValue(json, Map.class);
             String concatenatedValues = new TreeMap<>(csvMap).values().stream()
                     .map(String::valueOf)
                     .collect(Collectors.joining());
             String key = sha256Hex(concatenatedValues);
-            String message = metadataJson + "\n" + csvJson;
+            String message = metadataJson + "\n" + json;
             System.out.println(RED + "Sending message with key: " + key + RESET + BLUE + " and message:\n" + message + RESET);
             kafkaTemplate.send("output_results", key, message);
         }

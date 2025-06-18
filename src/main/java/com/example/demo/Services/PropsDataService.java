@@ -10,24 +10,24 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class FieldMetaService {
+public class PropsDataService {
     private final JdbcTemplate jdbcTemplate;
 
     @Autowired
-    public FieldMetaService(JdbcTemplate jdbcTemplate) {
+    public PropsDataService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public record FieldMeta(String type, String specialType) {
+    public record PropsData(String type, String specialType) {
     }
 
     // #9: retrieves field metadata for a given resource ID from the database.
-    public Map<String, FieldMeta> getFieldMeta(int resourceId) {
+    public Map<String, PropsData> getPropsData(int resourceId) {
         String sql = "SELECT FIELD_NAME, FIELD_TYPE, FIELD_SPECIAL_TYPE FROM PROPS_DATA WHERE RESOURCE_ID = ?";
-        Map<String, FieldMeta> map = new HashMap<>();
+        Map<String, PropsData> map = new HashMap<>();
         jdbcTemplate.query(sql, new Object[]{resourceId}, rs -> {
             map.put(rs.getString("FIELD_NAME"),
-                    new FieldMeta(rs.getString("FIELD_TYPE"), rs.getString("FIELD_SPECIAL_TYPE")));
+                    new PropsData(rs.getString("FIELD_TYPE"), rs.getString("FIELD_SPECIAL_TYPE")));
         });
         return map;
     }

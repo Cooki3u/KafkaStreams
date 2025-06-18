@@ -11,15 +11,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-public class ResourceDescriptionCacheService {
+public class ResourceDescriptionService {
     private final JdbcTemplate jdbcTemplate;
     // it allows both high scalability and safe concurrent access(multiple threads can read from the map simultaneously, good in our case because it prevents refreshing
     // the cache and getting value from the data at the same time).
     private final Map<Integer, Map<String, Object>> cache = new ConcurrentHashMap<>();
-    private static final Logger logger = LoggerFactory.getLogger(ResourceDescriptionCacheService.class);
+    private static final Logger logger = LoggerFactory.getLogger(ResourceDescriptionService.class);
 
     @Autowired
-    public ResourceDescriptionCacheService(JdbcTemplate jdbcTemplate) {
+    public ResourceDescriptionService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
         try {
             refreshCache();
@@ -50,5 +50,23 @@ public class ResourceDescriptionCacheService {
     // #6: retrieves the description for a given resource ID from the cache.
     public Map<String, Object> getDescription(int resourceId) {
         return cache.get(resourceId);
+    }
+
+    public record CsvFormat(String delimiter, String endLine) {}
+
+    public CsvFormat getCsvFormat(int resourceId) {
+        return jdbcTemplate.query(
+                "SELECT DELIMITER, END_LINE FROM RESOURCE_DESCRIPTION WHERE RESOURCE_ID = ?",
+                new Object[]{resourceId},
+                rs -> rs.next() ? new CsvFormat(rs.getString("DELIMITER"), rs.getString("END_LINE")) : null
+        );
+    }
+
+    public String getFileType(int resourceId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT FILE_TYPE FROM RESOURCE_DESCRIPTION WHERE RESOURCE_ID = ?",
+                new Object[]{resourceId},
+                String.class
+        );
     }
 }
