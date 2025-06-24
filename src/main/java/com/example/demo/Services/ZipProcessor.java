@@ -31,12 +31,15 @@ public class ZipProcessor {
         try (ZipFile zipFile = new ZipFile(zipPath)) {
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             ObjectMapper mapper = new ObjectMapper();
+
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String name = entry.getName();
+
                 if (name.endsWith(".json") && !name.equals("metadata.json")) {
                     try (InputStream is = zipFile.getInputStream(entry)) {
                         JsonNode node = mapper.readTree(is);
+
                         if (node.isArray()) {
                             for (JsonNode obj : node) {
                                 jsonList.add(mapper.writeValueAsString(obj));
